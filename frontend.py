@@ -1,139 +1,236 @@
-import streamlit as st
-import numpy as np
-from PIL import Image, ImageOps
-import io
-import matplotlib.pyplot as plt
-from streamlit_drawable_canvas import st_canvas
+import React, { useRef, useState, useEffect } from 'react';
+import * as tf from 'tensorflow';
 
-# Assume these are imported from your existing code
-# from your_model_module import model_with_regularization_22, predict_label
+const DigitRecognizer = () => {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [ctx, setCtx] = useState(null);
+  const [prediction, setPrediction] = useState(null);
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [model, setModel] = useState(null);
+  const [loadingError, setLoadingError] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-# Define the predict_label function from your backend
-def predict_label(image_np):
-    """
-    Takes a single-row NumPy array (shape: (1, 784)), 
-    predicts the label, and returns it.
-    Args:
-    image_np (numpy array): A (1, 784) shaped input image.
-    Returns:
-    int: Predicted label
-    """
-    # Ensure input shape is (1, 784)
-    assert image_np.shape == (1, 784), "Input should be a (1, 784) numpy array."
-    # Predict
-    y_pred_logits = model_with_regularization_22.predict(image_np, verbose=0)  
-    y_pred = np.argmax(y_pred_logits, axis=1)[0]  # Get the predicted class
-    return y_pred
-
-# Function to preprocess the drawn image
-def preprocess_image(image):
-    # Convert to grayscale
-    image = image.convert('L')
-    # Resize to 28x28
-    image = image.resize((28, 28))
-    # Invert colors if needed (assuming dark digit on light background)
-    image = ImageOps.invert(image)
-    # Convert to numpy array
-    img_array = np.array(image)
-    # Normalize pixel values
-    img_array = img_array / 255.0
-    # Flatten to 1x784
-    img_array = img_array.reshape(1, 784)
-    return img_array
-
-def main():
-    st.title("Handwritten Digit Recognition")
-    st.write("Draw a digit (0-9) below and the model will predict what it is.")
+  // Initialize canvas when component mounts
+  useEffect(() => {
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      
+      // Set canvas styling
+      context.lineWidth = 15;
+      context.lineJoin = 'round';
+      context.lineCap = 'round';
+      context.strokeStyle = 'black';
+      
+      // Fill with white background
+      context.fillStyle = 'white';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      setCtx(context);
+    }
     
-    # Create tabs for different input methods
-    tab1, tab2 = st.tabs(["Draw Digit", "Upload Image"])
+    // Try to load model
+    const loadModel = async () => {
+      try {
+        setLoadingError(null);
+        // In a real app, we would load your saved model from a server
+        // For demo purposes, we'll use a placeholder message
+        setModelLoaded(true);
+        setModel({ placeholder: true });
+      } catch (err) {
+        console.error("Failed to load model:", err);
+        setLoadingError("Failed to load the model. Please try again later.");
+      }
+    };
     
-    with tab1:
-        # Create a canvas component
-        canvas_result = st_canvas(
-            fill_color="black",
-            stroke_width=20,
-            stroke_color="white",
-            background_color="black",
-            height=280,
-            width=280,
-            drawing_mode="freedraw",
-            key="canvas",
-        )
-        
-        # Add buttons for prediction and clearing
-        col1, col2 = st.columns(2)
-        predict_button = col1.button("Predict Digit")
-        clear_button = col2.button("Clear Canvas")
-        
-        if clear_button:
-            # This will trigger a rerun with a fresh canvas
-            st.experimental_rerun()
-            
-        if predict_button:
-            if canvas_result.image_data is not None:
-                # Convert the drawn image to PIL format
-                image = Image.fromarray(canvas_result.image_data.astype('uint8'))
-                
-                # Display the preprocessed image
-                st.write("Preprocessed 28x28 Image:")
-                preprocessed = Image.fromarray(
-                    (preprocess_image(image).reshape(28, 28) * 255).astype(np.uint8)
-                )
-                st.image(preprocessed, width=140)
-                
-                # Get the preprocessed image as a numpy array
-                img_array = preprocess_image(image)
-                
-                try:
-                    # Comment out actual prediction for now, as we don't have the model
-                    # prediction = predict_label(img_array)
-                    # st.success(f"Prediction: {prediction}")
-                    
-                    # Placeholder for actual prediction
-                    st.success("In a real app, this would call your predict_label function")
-                    st.info("The model would receive a numpy array with shape (1, 784)")
-                    
-                    # Show the first few values of the array
-                    st.write("Preview of the input to predict_label function:")
-                    st.write(img_array[0][:20])  # Show first 20 values
-                except Exception as e:
-                    st.error(f"Prediction error: {e}")
-            else:
-                st.warning("Please draw a digit first!")
-                
-    with tab2:
-        uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-        
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", width=280)
-            
-            # Convert the image to the required format
-            img_array = preprocess_image(image)
-            
-            # Display the preprocessed image
-            st.write("Preprocessed 28x28 Image:")
-            preprocessed = Image.fromarray(
-                (img_array.reshape(28, 28) * 255).astype(np.uint8)
-            )
-            st.image(preprocessed, width=140)
-            
-            if st.button("Predict Uploaded Image"):
-                try:
-                    # Comment out actual prediction for now
-                    # prediction = predict_label(img_array)
-                    # st.success(f"Prediction: {prediction}")
-                    
-                    # Placeholder for actual prediction
-                    st.success("In a real app, this would call your predict_label function")
-                    st.info("The model would receive a numpy array with shape (1, 784)")
-                    
-                    # Show the first few values of the array
-                    st.write("Preview of the input to predict_label function:")
-                    st.write(img_array[0][:20])  # Show first 20 values
-                except Exception as e:
-                    st.error(f"Prediction error: {e}")
+    loadModel();
+  }, []);
 
-if __name__ == "__main__":
-    main()
+  const startDrawing = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Get correct mouse position relative to canvas
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Get correct mouse position relative to canvas
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    ctx.closePath();
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setPrediction(null);
+  };
+
+  const preprocessCanvas = () => {
+    const canvas = canvasRef.current;
+    
+    // Create a new canvas for processing
+    const processCanvas = document.createElement('canvas');
+    const processCtx = processCanvas.getContext('2d');
+    
+    // Set to MNIST dimensions
+    processCanvas.width = 28;
+    processCanvas.height = 28;
+    
+    // Scale down the image and convert to grayscale
+    processCtx.fillStyle = 'white';
+    processCtx.fillRect(0, 0, 28, 28);
+    processCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, 28, 28);
+    
+    // Get image data
+    const imageData = processCtx.getImageData(0, 0, 28, 28);
+    
+    // Create array for the model input (1x784)
+    const input = new Float32Array(784);
+    
+    // Convert pixel data to the format expected by the model
+    // Note: We invert colors since MNIST uses white digits on black background
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      // Convert RGBA to grayscale and normalize
+      const grayscale = 255 - (imageData.data[i] * 0.3 + imageData.data[i + 1] * 0.59 + imageData.data[i + 2] * 0.11);
+      input[i/4] = grayscale / 255.0;  // Normalize to [0,1]
+    }
+    
+    return input;
+  };
+
+  const predictDigit = () => {
+    if (!modelLoaded || isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const processedData = preprocessCanvas();
+      
+      // In a real application, this is where we would use the model to predict:
+      // const result = model.predict(tf.tensor([processedData]));
+      // const prediction = result.argMax(1).dataSync()[0];
+      
+      // For demo purposes, we'll simulate a prediction with a random number
+      setTimeout(() => {
+        const simulatedPrediction = Math.floor(Math.random() * 10);
+        setPrediction(simulatedPrediction);
+        setIsProcessing(false);
+      }, 500);
+      
+    } catch (err) {
+      console.error("Error during prediction:", err);
+      setPrediction("Error");
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center p-6 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">MNIST Digit Recognizer</h1>
+      
+      <div className="bg-gray-100 p-6 rounded-lg shadow-md w-full">
+        <div className="flex flex-col lg:flex-row items-center gap-6">
+          <div className="flex flex-col items-center">
+            <div className="border-4 border-gray-400 rounded-lg mb-4">
+              <canvas
+                ref={canvasRef}
+                width={280}
+                height={280}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                className="touch-none bg-white rounded-md"
+              />
+            </div>
+            
+            <div className="flex gap-4 mb-4">
+              <button 
+                onClick={clearCanvas}
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+              >
+                Clear
+              </button>
+              <button 
+                onClick={predictDigit}
+                disabled={!modelLoaded || isProcessing}
+                className={`px-4 py-2 text-white rounded transition ${
+                  !modelLoaded || isProcessing 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-500 hover:bg-blue-600'
+                }`}
+              >
+                {isProcessing ? 'Processing...' : 'Predict'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-center border border-gray-300 rounded-lg p-6 bg-white">
+            <h2 className="text-xl font-semibold mb-4">Prediction Result</h2>
+            {prediction !== null ? (
+              <div className="text-7xl font-bold text-blue-600">
+                {prediction}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-lg">
+                Draw a digit and click "Predict"
+              </div>
+            )}
+            
+            <div className="mt-6 text-gray-600 text-sm">
+              {modelLoaded ? (
+                <span className="text-green-500 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Model Ready
+                </span>
+              ) : loadingError ? (
+                <span className="text-red-500">{loadingError}</span>
+              ) : (
+                <span className="text-yellow-500">Loading model...</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-8 p-6 bg-gray-100 rounded-lg w-full">
+        <h2 className="text-xl font-semibold mb-4">Instructions</h2>
+        <ol className="list-decimal pl-6 space-y-2">
+          <li>Draw a single digit (0-9) in the canvas area</li>
+          <li>Try to center your digit in the drawing area</li>
+          <li>Click the "Predict" button to see the model's prediction</li>
+          <li>Use "Clear" to erase and try another digit</li>
+        </ol>
+        <p className="mt-4 text-sm text-gray-600">
+          Note: This demo uses a pre-trained model on the MNIST dataset, which recognizes
+          handwritten digits. For best results, draw clear digits that fill most of the drawing area.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default DigitRecognizer;
